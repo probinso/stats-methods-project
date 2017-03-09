@@ -22,10 +22,11 @@ g = function(i) {
 }
 autosave = g(1)
 
-df = read.delim("./../data/expression.txt", sep="\t", header=T) %>% t
+df = read.delim("./../data/expression.txt", sep="\t", header=T, check.names = F) %>% t
 dim(df)
 
 sample_names = rownames(df)
+sample_names
 gene_names   = colnames(df)
 
 matrix_boxplot = as.data.frame %|% stack %|%
@@ -44,11 +45,19 @@ gene_by_name = function(gene_name) df[,gene_name]
 
 sort_cov = df %>% colCoV %>% sort(decreasing = T)
 
+sum(sort_cov > 0.5)
+
 summary(sort_cov)
 which.max(sort_cov)
 which.min(sort_cov) %>% names %>% gene_by_name %>% summary
 
-pl = sort_cov %>% qplot(.) + geom_vline(xintercept = .1, col="red")
+target_genes = sort_cov %>% .[.>0.5] %>% names
+
+pl = sort_cov %>% .[.>0.5] %>% qplot(.)
+pl
+
+
+
 autosave = autosave(pl)
 
 COUNT = 15
@@ -77,3 +86,12 @@ tump %>% mutate_all(as.character) %>% mutate_all(as.numeric) %>% cbind(ns) %>%
   melt %>% ggplot(data=., aes(x=ns, y=value, fill=variable)) +
     geom_bar(stat="identity", position=position_dodge())  +
     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+##########################################3
+INFO = df[,target_genes] %>% cbind(subtype=subtypes[rownames(df),])
+INFO %>% data.frame
+
+mod = glm(subtype ~ ., data=INFO %>% data.frame, family = binomial(link="logit"))
+step(mod)
