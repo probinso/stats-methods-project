@@ -19,9 +19,7 @@ g = function(i) {
 autosave = g(1)
 
 
-df       = read.delim("./../data/expression.txt", sep="\t", header=T) %>% t
-subtypes = read.delim("./../data/subtypes.txt",   sep="\t", header=T)
-
+df = read.delim("./../data/expression.txt", sep="\t", header=T) %>% t
 dim(df)
 
 sample_names = rownames(df)
@@ -32,7 +30,7 @@ matrix_boxplot = as.data.frame %|% stack %|%
   aes(x=ind, y=values) + ylim(c(2,14)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-colCoV <- function(x) { # coeficient of variance
+colCoV = function(x) { # coeficient of variance
   y = x %>% t
   m = rowMeans(y)
   v = rowSums((y - m)^2)/(dim(y)[2] - 1)
