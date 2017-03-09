@@ -18,7 +18,6 @@ g = function(i) {
 }
 autosave = g(1)
 
-
 df = read.delim("./../data/expression.txt", sep="\t", header=T) %>% t
 dim(df)
 
@@ -58,4 +57,19 @@ bplots =
 autosave = bplots[["head"]] %>% autosave
 autosave = bplots[["tail"]] %>% autosave
 bplots %>% multiplot(plotlist = ., cols = 2)
+
+draw_rownames <- function(.data) .data %>% do(mutate(.,rownames=rownames(.)))
+
+targets  = read.delim("./../data/training_set_answers.txt", row.names=1, header=T)
+subtypes = read.delim("./../data/subtypes.txt", header=T, row.names=1)
+targets  = targets %>% cbind(subtype=subtypes[rownames(targets),])
+
+targets  = targets %>% mutate(subtype = factor(subtype)) %>% arrange(subtype) 
+targets %>% group_by(subtype) %>% summarise_each(funs(sum))
+
+# hetcor(targets[,c("subtype", "Carboplatin")])
+
+
+# targets %>%  apply(., 2, function(col) hetcor(col, .[,"subtype"]))
+# levels(targets[, "subtype"])
 
