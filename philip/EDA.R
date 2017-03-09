@@ -1,0 +1,63 @@
+library(tidyverse)
+source("./multiplot.R")
+
+'%&%' = function(x, y)paste0(x,y) # string concatination
+
+part   = function(f, ...) function(X) f(X, ...) # parameter-partial evaluation
+'%|%'  = function(f, g) function(X) X %>% f %>% g # function composition
+'%T%'  = function(d, funcs) lapply(funcs, part(function(f, d) f(d), d)) # Tee
+'%T>%' = function(l, f) lapply(l, f) # lapply after Tee (consistant syntax)
+
+g = function(i) {
+  as = function(x) {
+    filename = "myplot_" %&% i %&% ".pdf"
+    ggsave(file = "./" %&% filename, plot = x)
+    g(i+1);
+  }
+  as
+}
+autosave = g(1)
+
+
+df       = read.delim("./../data/expression.txt", sep="\t", header=T) %>% t
+subtypes = read.delim("./../data/subtypes.txt",   sep="\t", header=T)
+
+dim(df)
+
+sample_names = rownames(df)
+gene_names   = colnames(df)
+
+matrix_boxplot = as.data.frame %|% stack %|%
+  function(x) ggplot(x) + geom_boxplot() + 
+  aes(x=ind, y=values) + ylim(c(2,14)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+colCoV <- function(x) { # coeficient of variance
+  y = x %>% t
+  m = rowMeans(y)
+  v = rowSums((y - m)^2)/(dim(y)[2] - 1)
+  v / m
+}
+
+gene_by_name = function(gene_name) df[,gene_name]
+
+sort_cov = df %>% colCoV %>% sort(decreasing = T)
+
+summary(sort_cov)
+which.max(sort_cov)
+which.min(sort_cov) %>% names %>% gene_by_name %>% summary
+
+pl = sort_cov %>% qplot(.) + geom_vline(xintercept = .1, col="red")
+autosave = autosave(pl)
+
+COUNT = 15
+
+bplots =
+  sort_cov %>% names %T% 
+  list(head=part(head, COUNT), tail=part(tail, COUNT)) %T>%
+  gene_by_name %T>% matrix_boxplot
+
+autosave = bplots[["head"]] %>% autosave
+autosave = bplots[["tail"]] %>% autosave
+bplots %>% multiplot(plotlist = ., cols = 2)
+
