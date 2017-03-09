@@ -67,16 +67,13 @@ draw_rownames <- function(.data) .data %>% do(mutate(.,rownames=rownames(.)))
 targets  = read.delim("./../data/training_set_answers.txt", row.names=1, header=T)
 subtypes = read.delim("./../data/subtypes.txt", header=T, row.names=1)
 targets  = targets %>% cbind(subtype=subtypes[rownames(targets),])
-
 targets  = targets %>% mutate(subtype = factor(subtype)) %>% arrange(subtype)
-#targets %>% group_by(subtype) %>% summarise_each(funs(sum))
-tump = targets %>% slice_rows("subtype") %>% dmap(sum) %>% t
+tump = targets %>% slice_rows("subtype") %>% dmap(function(x) sum(x) / length(x)) %>% t
 colnames(tump) = tump[1,]
 tump = tump[-1,]
 tump = data.frame(tump)
-
 ns = rownames(tump)
-tump %>% mutate_all(as.numeric) %>% cbind(ns)  %>% melt %>%
-ggplot(data=., aes(x=ns, y=value, fill=variable)) +
-  geom_bar(stat="identity", position=position_dodge())  +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+tump %>% mutate_all(as.character) %>% mutate_all(as.numeric) %>% cbind(ns) %>%
+  melt %>% ggplot(data=., aes(x=ns, y=value, fill=variable)) +
+    geom_bar(stat="identity", position=position_dodge())  +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
