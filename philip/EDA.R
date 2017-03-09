@@ -1,5 +1,9 @@
 library(tidyverse)
 source("./multiplot.R")
+library(purrr)
+library(ggplot2)
+library(reshape2)
+
 
 '%&%' = function(x, y)paste0(x,y) # string concatination
 
@@ -25,7 +29,7 @@ sample_names = rownames(df)
 gene_names   = colnames(df)
 
 matrix_boxplot = as.data.frame %|% stack %|%
-  function(x) ggplot(x) + geom_boxplot() + 
+  function(x) ggplot(x) + geom_boxplot() +
   aes(x=ind, y=values) + ylim(c(2,14)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
@@ -50,7 +54,7 @@ autosave = autosave(pl)
 COUNT = 15
 
 bplots =
-  sort_cov %>% names %T% 
+  sort_cov %>% names %T%
   list(head=part(head, COUNT), tail=part(tail, COUNT)) %T>%
   gene_by_name %T>% matrix_boxplot
 
@@ -64,12 +68,15 @@ targets  = read.delim("./../data/training_set_answers.txt", row.names=1, header=
 subtypes = read.delim("./../data/subtypes.txt", header=T, row.names=1)
 targets  = targets %>% cbind(subtype=subtypes[rownames(targets),])
 
-targets  = targets %>% mutate(subtype = factor(subtype)) %>% arrange(subtype) 
-targets %>% group_by(subtype) %>% summarise_each(funs(sum))
+targets  = targets %>% mutate(subtype = factor(subtype)) %>% arrange(subtype)
+#targets %>% group_by(subtype) %>% summarise_each(funs(sum))
+tump = targets %>% slice_rows("subtype") %>% dmap(sum) %>% t
+colnames(tump) = tump[1,]
+tump = tump[-1,]
+tump = data.frame(tump)
 
-# hetcor(targets[,c("subtype", "Carboplatin")])
-
-
-# targets %>%  apply(., 2, function(col) hetcor(col, .[,"subtype"]))
-# levels(targets[, "subtype"])
-
+ns = rownames(tump)
+tump %>% mutate_all(as.numeric) %>% cbind(ns)  %>% melt %>%
+ggplot(data=., aes(x=ns, y=value, fill=variable)) +
+  geom_bar(stat="identity", position=position_dodge())  +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
