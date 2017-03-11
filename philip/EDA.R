@@ -4,6 +4,12 @@ library(purrr)
 library(ggplot2)
 library(reshape2)
 
+#########################################################
+# Helper Functions
+#########################################################
+
+draw_rownames <- function(.data) .data %>%
+  do(mutate(.,"rownames"=rownames(.)))
 
 '%&%' = function(x, y)paste0(x,y) # string concatination
 
@@ -12,27 +18,14 @@ part   = function(f, ...) function(X) f(X, ...) # parameter-partial evaluation
 '%T%'  = function(d, funcs) lapply(funcs, part(function(f, d) f(d), d)) # Tee
 '%T>%' = function(l, f) lapply(l, f) # lapply after Tee (consistant syntax)
 
-g = function(i) {
-  as = function(x) {
-    filename = "myplot_" %&% i %&% ".pdf"
-    ggsave(file = "./" %&% filename, plot = x)
-    g(i+1);
-  }
-  as
-}
-autosave = g(1)
-
-df = read.delim("./../data/expression.txt", sep="\t", header=T, check.names = F) %>% t
-dim(df)
-
-sample_names = rownames(df)
-sample_names
-gene_names   = colnames(df)
+read.tsv = part(read.delim, sep='\t', row.names=1, header=T, check.names = F)
 
 matrix_boxplot = as.data.frame %|% stack %|%
   function(x) ggplot(x) + geom_boxplot() +
   aes(x=ind, y=values) + ylim(c(2,14)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+dropcols = function(df, cols) df[,!(colnames(df) %in% cols)]
 
 colCoV = function(x) { # coeficient of variance
   y = x %>% t
@@ -41,57 +34,98 @@ colCoV = function(x) { # coeficient of variance
   v / m
 }
 
+pop_header_row = function (df) {
+  # malformed data, encoded labels in top row
+  df.new = df
+  colnames(df.new) = df.new[1,]
+  df.new[-1,]
+}
+#########################################################
+# Expression Data
+#########################################################
+df = read.tsv("./../data/expression.txt") %>% t
+TotalSamples = dim(df)[1]; TotalGenes = dim(df)[2]
+
+sample_names = rownames(df)
+gene_names   = colnames(df)
+
 gene_by_name = function(gene_name) df[,gene_name]
 
+# genes sorted by coeficient of variance
 sort_cov = df %>% colCoV %>% sort(decreasing = T)
 
-sum(sort_cov > 0.5)
+# how many have coeficient of variance greater than 0.5
+THRESH = 0.5
+sum(sort_cov > THRESH)
 
 summary(sort_cov)
-which.max(sort_cov)
+which.max(sort_cov) %>% names
 which.min(sort_cov) %>% names %>% gene_by_name %>% summary
 
-target_genes = sort_cov %>% .[.>0.5] %>% names
+critical_genes = sort_cov %>% .[.>THRESH] %>% names
 
-pl = sort_cov %>% .[.>0.5] %>% qplot(.)
-pl
-
-
-
-autosave = autosave(pl)
+sort_cov %>%
+  qplot(.) + geom_vline(xintercept = 0.5, col="red")
+sort_cov %>% .[critical_genes] %>%
+  qplot(.) + geom_vline(xintercept = 0.5, col="red")
 
 COUNT = 15
-
-bplots =
-  sort_cov %>% names %T%
+critical_genes %T%
   list(head=part(head, COUNT), tail=part(tail, COUNT)) %T>%
   gene_by_name %T>% matrix_boxplot
+.Last.value %>% multiplot(plotlist = ., cols = 2)
 
-autosave = bplots[["head"]] %>% autosave
-autosave = bplots[["tail"]] %>% autosave
-bplots %>% multiplot(plotlist = ., cols = 2)
+##################################################################
+# read subtypes off of disk
+subtypes = read.tsv("./../data/subtypes.txt")
+# read and re-structure training_set_answers from disk
+targets  = read.tsv("./../data/training_set_answers.txt") %>%
+  cbind(., subtype=subtypes[rownames(.),])
 
-draw_rownames <- function(.data) .data %>% do(mutate(.,rownames=rownames(.)))
+targets %>% arrange(subtype)
 
-targets  = read.delim("./../data/training_set_answers.txt", row.names=1, header=T)
-subtypes = read.delim("./../data/subtypes.txt", header=T, row.names=1)
-targets  = targets %>% cbind(subtype=subtypes[rownames(targets),])
-targets  = targets %>% mutate(subtype = factor(subtype)) %>% arrange(subtype)
-tump = targets %>% slice_rows("subtype") %>% dmap(function(x) sum(x) / length(x)) %>% t
-colnames(tump) = tump[1,]
-tump = tump[-1,]
-tump = data.frame(tump)
+ratio_success = function(df) dmap(df, function(x) sum(x) / length(x))
+
+tump = targets %>%
+  mutate(subtype = factor(subtype)) %>%
+  slice_rows("subtype") %>% # chunk into groups by "subtype"
+  ratio_success %>% # compute success of each drug/subtype
+  t %>% pop_header_row %>% data.frame # data munging
+
 ns = rownames(tump)
-tump %>% mutate_all(as.character) %>% mutate_all(as.numeric) %>% cbind(ns) %>%
-  melt %>% ggplot(data=., aes(x=ns, y=value, fill=variable)) +
+tump %>%
+  mutate_all(as.character) %>%
+  mutate_all(as.numeric) %>%
+  cbind(ns) %>%
+  melt %>%
+  ggplot(data=., aes(x=ns, y=value, fill=variable)) +
     geom_bar(stat="identity", position=position_dodge())  +
     theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
+##########################################
+get_drug_data = function(drugname) {
+  df = critical_genes %>% gene_by_name
+  sample_names = rownames(df)[rownames(df) %in% rownames(targets)]
 
-##########################################3
-INFO = df[,target_genes] %>% cbind(subtype=subtypes[rownames(df),])
-INFO %>% data.frame
+  df[sample_names,] %>%
+  cbind(
+    subtype=subtypes[sample_names,],
+    success=targets[sample_names, drugname])
+}
 
-mod = glm(subtype ~ ., data=INFO %>% data.frame, family = binomial(link="logit"))
-step(mod)
+targets[rownames(df) %in% rownames(targets),drugs[2]]
+
+rownames(targets)
+
+get_drug_model = function(drugname) {
+  INFO = get_drug_data(drugname)
+  mod = glm(success ~ .,
+            data=INFO %>% data.frame,
+            family = binomial(link="logit"))
+  step(mod)
+}
+
+drugs = targets %>% dropcols(c("subtype")) %>% names
+
+drugs %T>% get_drug_model %>% head
