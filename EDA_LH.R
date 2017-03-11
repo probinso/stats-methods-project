@@ -6,8 +6,6 @@ expression <- read_delim("C:/Users/Lawrence Hsu/kaggle-stats/expression.txt",
 subtypes <- read_delim("C:/Users/Lawrence Hsu/kaggle-stats/subtypes.txt", 
                        "\t", escape_double = FALSE, trim_ws = TRUE)
 
-
-
 #EDA, I wish to know if there particular discrepancy between the different tissue types
 #if there were any we would have to change how Cross validation would have been done
 expression<-t(expression)
@@ -26,6 +24,6 @@ summary(expression1)
 dim(expression1)
 #how many of different types of cell tissue types,
 count(subtypes,'subtype')
-
+count(scoring_and_test_set_id_mappings,'cellline')
 
 
