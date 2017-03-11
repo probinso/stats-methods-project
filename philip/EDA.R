@@ -4,6 +4,8 @@ library(purrr)
 library(ggplot2)
 library(reshape2)
 
+library(foreach) # use dopar
+
 #########################################################
 # Helper Functions
 #########################################################
@@ -128,15 +130,31 @@ get_drug_model = function(drugname) {
 
 drugs = targets %>% dropcols(c("subtype")) %>% names
 
-drugs %T>% get_drug_model %>% head
+drugs #%T>% get_drug_model
+
+badcell = targets %>% dropcols(c("subtype")) %>% rowSums %>% which.min %>% names
+
+get_sample_data = function(samplename) 
+  df[samplename,] %>% rbind(subtype=subtypes[samplename])
 
 
 .f = function () {
-  "
+"
 penalizedSVM uses automatic feature selection
-- we should use elastic net, as lasso runs into problems with a poor sample/feature ratio
+  we should use elastic net, as lasso runs into problems with a poor 
+  sample/feature ratio
 other option is randomforests
 
-If we first gene-select, then force inclusion of the subtype, then we can e
-  "
+If we first gene-select, then force inclusion of the subtype, then we 
+  can force the 
+
+we will use bagging for a voting system
+
+What makes HCC1428 different than other cells?
+
+If there is a good indicator of difference with HCC1428, then we 
+  should calculate probability that any medication will work and multiply it
+  by our result.
+"
 }
+
