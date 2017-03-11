@@ -129,3 +129,14 @@ get_drug_model = function(drugname) {
 drugs = targets %>% dropcols(c("subtype")) %>% names
 
 drugs %T>% get_drug_model %>% head
+
+
+.f = function () {
+  "
+penalizedSVM uses automatic feature selection
+- we should use elastic net, as lasso runs into problems with a poor sample/feature ratio
+other option is randomforests
+
+If we first gene-select, then force inclusion of the subtype, then we can e
+  "
+}
