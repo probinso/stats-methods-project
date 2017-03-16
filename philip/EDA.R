@@ -122,12 +122,14 @@ get_drug_data = function(genes, drugname) {
 rownames(targets)
 
 get_drug_model = function(drugname) {
-  INFO = get_drug_data(drugname)
+  INFO = critical_genes %>% get_drug_data(drugname)
   mod = glm(success ~ .,
             data=INFO %>% data.frame,
             family = binomial(link="logit"))
   step(mod)
 }
+
+drugs[1] %>% get_drug_model
 
 drugs = targets %>% dropcols(c("subtype")) %>% names
 
