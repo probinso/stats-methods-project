@@ -137,7 +137,7 @@ get_sample_data = function(samplename)
   df[samplename,] %>% rbind(subtype=subtypes[samplename])
 
 lapply(drugs, function(drugname)
-critical_genes %>% head(20) %>%
+critical_genes %>% head(15) %>%
   get_drug_data(drugname) %>% dropcols(cols=c("subtype")) %>% data.frame %>%
   draw_rownames %>% melt(id=c("rownames", "success")) %>% 
   ggplot2.stripchart(
@@ -149,6 +149,8 @@ critical_genes %>% head(20) %>%
     stat="identity", addBoxplot = T
     ) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme(legend.position="none",
+        axis.title.x=element_blank())+
   ggtitle(drugname)
 ) %>% multiplot(plotlist = ., cols = 4)
 
