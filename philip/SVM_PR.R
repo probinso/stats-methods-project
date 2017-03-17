@@ -12,10 +12,9 @@ part   = function(f, ...) function(X) f(X, ...) # parameter-partial evaluation
 read.tsv = part(read.delim, sep='\t', row.names=1, header=T, check.names = F)
 
 gene_data = read.tsv("./../data/expression.txt") %>% as.matrix %>% t
-training  = read.tsv("./../training_set_answers.txt")
 
+training  = read.tsv("./../training_set_answers.txt")
 training = ifelse(training==1, 'Y', 'N')
-training
 
 rowCov = function(mat) rowSds(mat) / rowMeans(mat)
 colCoV = t %|% rowCov
@@ -25,14 +24,13 @@ gene_cov %>% qplot
 
 target_genes  = gene_cov %>% subset(gene_cov > 0.3) %>% names
 train_samples = row.names(training)
-train_samples
 
 train_by_genes = function(genes) gene_data[train_samples, genes] %>% data.frame
 test_by_genes  = function(genes)
   gene_data[!rownames(gene_data) %in% train_samples, genes] %>% data.frame
 
-target_genes %>% train_by_genes
-target_genes %>% test_by_genes
+#target_genes %>% train_by_genes
+#target_genes %>% test_by_genes
 
 success_by_drug = function(drug) training[,drug]
 
@@ -45,9 +43,6 @@ SAMPLE_DRUG = "Cisplatin"
 df = target_genes %>% train_by_drug(SAMPLE_DRUG)
 
 ctrl = rfeControl(functions=caretFuncs, method='cv',number=5, verbose=T)
-
-#target_genes %>% train_by_genes %>% dim
-#SAMPLE_DRUG %>% success_by_drug %>% length
 
 svmprofile =
   rfe(x=train_by_genes(target_genes),
@@ -69,14 +64,14 @@ rfprofile = train(
   method='rf',
   tuneGrid=expand.grid(mtry=c(1:70)))
 
-#creating a svm fit to predict 
+#creating a svm fit to predict
 svmgrid<-expand.grid(
   C=c(1,10,100),
   sigma=c(0,1.2,1.5,1.7,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6))
 
 fitcontrol<-trainControl(method="repeatedcv",number=5, repeats=3, search="grid")
 svm.fit<-train(
-  success~C1S+SLC34A2,
+  success ~ C1S + SLC34A2,
   data=df,
   tuneGrid=svmgrid,
   trControl=fitcontrol,
