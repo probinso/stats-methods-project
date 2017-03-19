@@ -5,6 +5,8 @@ gene_cor = target_genes %>% train_by_genes %>% cor
 
 gene_cor %>% as.vector %>% qplot
 
+write(gene_cor, "genecor.csv", sep = ',')
+
 COTR = 0.7
 gene_cor %>% 
   findCorrelation(cutoff=COTR) %>% 
@@ -18,7 +20,7 @@ ctrl = rfeControl(functions=caretFuncs, method='cv',number=5, verbose=T)
 svmprofile =
   rfe(
     x=train_by_genes(target_genes),
-    y=success_by_drug(SAMPLE_DRUG),
+    y=success_by_drug(drugs[3]),
     method='svmRadial',
     sizes=c(1:5,10,20,40,70,90)
   )
