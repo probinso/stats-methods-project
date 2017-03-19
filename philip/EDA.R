@@ -1,6 +1,10 @@
 source("./../setup.R")
 source("./../multiplot.R")
 
+library(easyGgplot2)
+library(ggplot2)
+
+
 critical_genes = gene_cov %>% subset(gene_cov > CVTR) %>% names
 
 gene_cov %>%
@@ -65,8 +69,6 @@ badcell = targets %>% dropcols(c("subtype")) %>% rowSums %>% which.min %>% names
 get_sample_data = function(samplename)
   df[samplename,] %>% rbind(subtype=subtypes[samplename])
 
-library(easyGgplot2)
-library(ggplot2)
 
 plots = 
   lapply(drugs,
