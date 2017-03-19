@@ -1,61 +1,17 @@
-#!/usr/bin/env R
+source("./../setup.R")
 
-library(caret)
-library(matrixStats)
-library(tidyverse)
-
-part   = function(f, ...) function(X) f(X, ...) # parameter-partial evaluation
-
-'%|%'  = function(f, g) function(X) X %>% f %>% g # function composition
-'%T%'  = function(d, funcs) lapply(funcs, part(function(f, d) f(d), d)) # Tee
-'%T>%' = function(l, f) lapply(l, f) # lapply after Tee (consistant syntax)
-'%ni%' = Negate("%in%")
-
-read.tsv = part(read.delim, sep='\t', row.names=1, header=T, check.names = F)
-
-gene_data = read.tsv("./../data/expression.txt") %>% 
-  as.matrix %>% t
-training = read.tsv("./../data/training_set_answers.txt") %>% 
-  `==`(1) %>% ifelse(T, F)
-
-rowCov = function(mat) rowSds(mat) / rowMeans(mat)
-colCoV = t %|% rowCov
-
-gene_cov = gene_data %>% colCoV
-
-CVTR = 0.4
-gene_cov %>% qplot(.) + geom_vline(xintercept = CVTR, col="red")
-
-target_genes  = gene_cov %>% subset(gene_cov > CVTR) %>% names
-train_samples = row.names(training)
-
-train_by_genes = function(genes) gene_data[train_samples, genes] %>% data.frame
-test_by_genes  = function(genes)
-  gene_data[!rownames(gene_data) %in% train_samples, genes] %>% data.frame
-
-#target_genes %>% train_by_genes
-#target_genes %>% test_by_genes
-
-success_by_drug = function(drug) training[,drug]
-
-train_by_drug = function(genes, drug)
-  genes %>% train_by_genes %>%
-  cbind(success=success_by_drug(drug))
-
-##################################################################
 SAMPLE_DRUG = "Cisplatin"
-df = target_genes %>% train_by_drug(SAMPLE_DRUG)
-
 gene_cor = target_genes %>% train_by_genes %>% cor
 
-gene_cor %>% as.vector %>% qplot 
+gene_cor %>% as.vector %>% qplot
 
 COTR = 0.7
 gene_cor %>% 
   findCorrelation(cutoff=COTR) %>% 
-  sort %>% `*`(-1) %>% 
-  target_genes[.] %>% train_by_drug(SAMPLE_DRUG) %>% cor %>% 
+  sort %>% `*`(-1) %>%
+  target_genes[.] %>% train_by_drug(SAMPLE_DRUG) %>% cor %>%
   as.vector %>% qplot(.) + geom_vline(xintercept = COTR, col="red")
+
 
 ctrl = rfeControl(functions=caretFuncs, method='cv',number=5, verbose=T)
 
@@ -69,6 +25,8 @@ svmprofile =
 
 fitcontrol =
   trainControl(method="repeatedcv", number=4, repeats=3, search="grid")
+
+df = target_genes %>% train_by_drug(SAMPLE_DRUG)
 
 pamprofile = train(success ~ ., data=df, method="pam", trControl=fitcontrol)
 
