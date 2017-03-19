@@ -65,23 +65,29 @@ badcell = targets %>% dropcols(c("subtype")) %>% rowSums %>% which.min %>% names
 get_sample_data = function(samplename)
   df[samplename,] %>% rbind(subtype=subtypes[samplename])
 
-lapply(drugs, function(drugname)
-critical_genes %>% head(15) %>%
-  get_drug_data(drugname) %>% dropcols(cols=c("subtype")) %>% data.frame %>%
-  draw_rownames %>% melt(id=c("rownames", "success")) %>% 
-  ggplot2.stripchart(
-    data=., xName='variable',yName='value',
-    groupName='success',
-    position=position_dodge(0.8),
-    backgroundColor="white",
-    groupColors=c('#999999','#E69F00'),
-    stat="identity", addBoxplot = T
-    ) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  theme(legend.position="none",
-        axis.title.x=element_blank())+
-  ggtitle(drugname)
-) %>% multiplot(plotlist = ., cols = 4)
+library(easyGgplot2)
+library(ggplot2)
+
+plots = 
+  lapply(drugs,
+         function(drugname)
+           critical_genes %>% head(15) %>%
+           get_drug_data(drugname) %>% dropcols(cols=c("subtype")) %>% 
+           data.frame %>% draw_rownames %>% melt(id=c("rownames", "success")) %>% 
+           ggplot2.stripchart(
+             data=., xName='variable',yName='value',
+             groupName='success', position=position_dodge(0.8),
+             backgroundColor="white",
+             groupColors=c('#999999','#E69F00'),
+             stat="identity", addBoxplot = T
+             ) +
+           theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+           theme(legend.position="none",
+                 axis.title.x=element_blank())+
+           ggtitle(drugname)
+         )
+
+plots %>% multiplot(plotlist = ., cols = 4)
 
 
 
