@@ -2,29 +2,25 @@ setwd("~/git/kaggle-stats/philip")
 source(file.path("..", "setup.R"))
 library(caret)
 
-target_genes = genes_cov_thresh(0.4) #%>% genes_cor_thresh(0.9)
+target_genes = genes_cov_thresh(0.4) %>% genes_cor_thresh(0.7)
 length(target_genes) 
 
 models =
   lapply(drugs, function(drug) {
     
-  drug = drugs[1]
-  df = target_genes %>% train_by_drug(drug)
-  #df = dummyVars(" ~ .", data = subtypes) %>%
-  #  predict(., newdata = subtypes) %>%
-  #  .[rownames(df),] %>% cbind(df)
-
-  control = trainControl(method="repeatedcv", number=4, repeats=3)
-  mtry = sqrt(ncol(df))
-  tg = expand.grid(.mtry=mtry)
-  rf_default = train(
-    success ~ ., data=df,
-    method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=100)
-  rf_default
+    df = target_genes %>% train_by_drug(drug) %>% hotextend_subtypes
+    
+    control = trainControl(method="repeatedcv", number=4, repeats=10)
+    mtry = sqrt(ncol(df))
+    tg = expand.grid(.mtry=mtry)
+    rf_default = train(
+      success ~ ., data=df,
+      method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=100)
+    rf_default
   })
 
+lapply(hmodels, function(m) m[["results"]][["Accuracy"]]) %>% unlist %>% sort
 
-models[3]
 
 yield = lapply(names(models), function(drug) {
   yhat = predict(models[[drug]], test_by_genes(target_genes))

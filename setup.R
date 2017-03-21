@@ -97,6 +97,12 @@ subtype_by_drug = function(drug)
   cbind(success=success_by_drug(drug)[rownames(subtypes)]) %>%
   remove_missing
 
+hotextend_subtypes = function(df) {
+  dummyVars(" ~ .", data = subtypes) %>%
+    predict(., newdata = subtypes) %>%
+    .[rownames(df),] %>% `*`(15) %>% cbind(df)
+}
+
 train_by_drug = function(genes, drug)
   genes %>% train_by_genes %>%
   cbind(success=success_by_drug(drug))
