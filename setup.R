@@ -37,18 +37,19 @@ matrix_boxplot = as.data.frame %|% stack %|%
 
 
 ################################################################
+BASE = normalizePath(file.path("..", "data"))
 
-gene_data = read.tsv("./../data/expression.txt") %>% 
+gene_data = read.tsv(file.path(BASE, "expression.txt")) %>%
   as.matrix %>% t
 
-training = read.tsv("./../data/training_set_answers.txt") %>% 
+training = read.tsv(file.path(BASE, "training_set_answers.txt")) %>%
   `==`(1) %>% ifelse(T, F)
 
-subtypes = read.tsv("./../data/subtypes.txt")
+subtypes = read.tsv(file.path(BASE, "subtypes.txt"))
 # read and re-structure training_set_answers from disk
-targets  = read.tsv("./../data/training_set_answers.txt") 
+targets  = read.tsv(file.path(BASE, "training_set_answers.txt"))
 
-mapping = read.csv("./../data/scoring_and_test_set_id_mappings.csv") %>%
+mapping = read.csv(file.path(BASE, "scoring_and_test_set_id_mappings.csv")) %>%
   data.frame
 
 
@@ -62,13 +63,20 @@ gene_cov = gene_data %>% colCoV
 
 
 ################################################################
-CVTR = 0.4
 genes_cov_thresh =
-  function(CVTR=0.4) gene_cov %>% subset(gene_cov > CVTR) %>% names
+  function(CVTR) gene_cov %>% subset(gene_cov > CVTR) %>% names
 
-gene_cov %>% qplot(.) + geom_vline(xintercept = CVTR, col="red")
+genes_cor_thresh =
+  function(names, COTR) {
+    names %>% train_by_genes %>% cor %>%
+      findCorrelation(cutoff=COTR) %>%
+      sort %>% `*`(-1) %>%
+      names[.]
+  }
 
-target_genes  = gene_cov %>% subset(gene_cov > CVTR) %>% names
+#gene_cov %>% qplot(.) + geom_vline(xintercept = CVTR, col="red")
+
+# target_genes  = gene_cov %>% genes_cov_thresh(CVTR)
 train_samples = row.names(training)
 test_samples  = rownames(gene_data)[rownames(gene_data) %ni% train_samples]
 
@@ -76,11 +84,18 @@ data_by_genes  = function(genes) gene_data[, genes] %>% data.frame
 train_by_genes = function(genes) gene_data[train_samples, genes] %>% data.frame
 test_by_genes  = function(genes)
   gene_data[test_samples, genes] %>% data.frame
-  
+
 #target_genes %>% train_by_genes
 #target_genes %>% test_by_genes
 
-success_by_drug = function(drug) training[,drug] %>% `==`(T) %>% ifelse('Y', 'N')
+success_by_drug = function(drug)
+  training[,drug] %>% `==`(T) %>% ifelse('Y', 'N')
+
+# subtype frame
+subtype_by_drug = function(drug)
+  subtypes %>%
+  cbind(success=success_by_drug(drug)[rownames(subtypes)]) %>%
+  remove_missing
 
 train_by_drug = function(genes, drug)
   genes %>% train_by_genes %>%
