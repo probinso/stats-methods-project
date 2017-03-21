@@ -85,6 +85,8 @@ train_by_genes = function(genes) gene_data[train_samples, genes] %>% data.frame
 test_by_genes  = function(genes)
   gene_data[test_samples, genes] %>% data.frame
 
+all_test_data = gene_data[test_samples, ] %>% data.frame %>% hotextend_subtypes
+
 #target_genes %>% train_by_genes
 #target_genes %>% test_by_genes
 
@@ -100,7 +102,7 @@ subtype_by_drug = function(drug)
 hotextend_subtypes = function(df) {
   dummyVars(" ~ .", data = subtypes) %>%
     predict(., newdata = subtypes) %>%
-    .[rownames(df),] %>% `*`(15) %>% cbind(df)
+    .[rownames(df),] %>% cbind(df)
 }
 
 train_by_drug = function(genes, drug)

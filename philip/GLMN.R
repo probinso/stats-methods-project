@@ -3,10 +3,10 @@ source(file.path("..", "setup.R"))
 library(caret)
 library(glmnet)
 
-target_genes = genes_cov_thresh(0.1) #%>% genes_cor_thresh(0.7)
+target_genes = genes_cov_thresh(1) #%>% genes_cor_thresh(0.7)
 length(target_genes) 
 
-x = target_genes %>% train_by_genes %>% hotextend_subtypes %>% mutate_all(as.double)
+x = target_genes %>% train_by_genes %>% hotextend_subtypes
 cvfits = lapply(drugs, function(drug) {
   y = success_by_drug(drugs[1]) %>% `==`('Y') %>% ifelse(1, 0) 
   cvfit = cv.glmnet(x=as.matrix(x), y=y, family="binomial", alpha=0.5)
