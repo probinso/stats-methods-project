@@ -85,7 +85,7 @@ df$id = apply(
     mapping[mapping$drug==r[["drug"]] & mapping$cellline==r[["cellline"]],]$id,
   MARGIN = 1)
 
-df[c("id", "value")] %>% arrange(id) %>% bak_and_save("rf.csv")
+df[c("id", "value")] %>% arrange(id) %>% bak_and_save("submit.csv")
 
 file.copy("rf.csv", to = "rf.csv.bak", overwrite = T)
 df[c("id", "value")] %>% arrange(id) %>% write.table("rf.csv", sep=",",row.names = F, quote=F)
