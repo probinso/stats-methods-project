@@ -37,7 +37,7 @@ matrix_boxplot = as.data.frame %|% stack %|%
 
 
 ################################################################
-BASE = normalizePath(file.path("..", "data"))
+BASE = normalizePath(file.path("."))
 
 gene_data = read.tsv(file.path(BASE, "expression.txt")) %>%
   as.matrix %>% t
