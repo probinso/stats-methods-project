@@ -74,6 +74,12 @@ genes_cor_thresh =
       names[.]
   }
 
+sort_cor_target = function(df, COTR, target)
+  apply(df, 2, function(col)cor(col, df[,target])) %>%
+  abs %>% sort(decreasing = T) %>% .[-c(1)] %>% .[.>COTR] %>%
+  names %>% c(target) %>% df[, .]
+
+
 #gene_cov %>% qplot(.) + geom_vline(xintercept = CVTR, col="red")
 
 # target_genes  = gene_cov %>% genes_cov_thresh(CVTR)
@@ -85,7 +91,6 @@ train_by_genes = function(genes) gene_data[train_samples, genes] %>% data.frame
 test_by_genes  = function(genes)
   gene_data[test_samples, genes] %>% data.frame
 
-all_test_data = gene_data[test_samples, ] %>% data.frame %>% hotextend_subtypes
 
 #target_genes %>% train_by_genes
 #target_genes %>% test_by_genes
@@ -105,7 +110,16 @@ hotextend_subtypes = function(df) {
     .[rownames(df),] %>% cbind(df)
 }
 
+
+all_test_data = gene_data[test_samples, ] %>% data.frame %>% hotextend_subtypes
+
 train_by_drug = function(genes, drug)
   genes %>% train_by_genes %>%
   cbind(success=success_by_drug(drug))
+
+bak_and_save = function(contents, filename) {
+  file.copy(filename, to = filename %&% "bak", overwrite = T)
+  contents %>% write.table(filename, sep=",",row.names = F, quote=F)
+}
+
 
