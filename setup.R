@@ -111,7 +111,15 @@ hotextend_subtypes = function(df) {
 }
 
 
-all_test_data = gene_data[test_samples, ] %>% data.frame %>% hotextend_subtypes
+all_test_data =
+  gene_data[test_samples, ] %>% 
+  data.frame %>% 
+  hotextend_subtypes
+
+all_train_data =
+  gene_data[train_samples, ] %>%
+  data.frame %>%
+  hotextend_subtypes
 
 train_by_drug = function(genes, drug)
   genes %>% train_by_genes %>%
