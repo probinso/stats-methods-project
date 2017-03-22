@@ -1,57 +1,64 @@
 source("./../setup.R")
 
-SAMPLE_DRUG = "Cisplatin"
-gene_cor = target_genes %>% train_by_genes %>% cor
+library(caret)
+library(memoise)
+library(doMC)
 
-gene_cor %>% as.vector %>% qplot
+registerDoMC(7)
 
-write(gene_cor, "genecor.csv", sep = ',')
+makeTRAIN = memoise(function(drug)
+  genes_cov_thresh(0.2) %>%
+    train_by_drug(drug) %>% hotextend_subtypes %>%
+    mutate_all(as.numeric) %>% sort_cor_target(0.3, "success") %>%
+    mutate(success=as.factor(ifelse(success==1, 'Y', 'N')))
+)
 
-COTR = 0.7
-gene_cor %>% 
-  findCorrelation(cutoff=COTR) %>% 
-  sort %>% `*`(-1) %>%
-  target_genes[.] %>% train_by_drug(SAMPLE_DRUG) %>% cor %>%
-  as.vector %>% qplot(.) + geom_vline(xintercept = COTR, col="red")
+models = lapply(drugs, function(drug) {
+  TRAIN = makeTRAIN(drug)
+  rfctrl = rfeControl(functions=caretFuncs, method='cv', number=4)
+  fmodel = rfe(
+    success ~ ., data=TRAIN,
+    rfeControl = rfctrl, methods='rf', sizes=seq(3,30,4))
+  features = predictors(fmodel)
+  
+  tctrl    = trainControl(method='cv', number=2, search='random')
+  cgcmod   = train(
+    success ~., TRAIN[,c("success",features)],
+    trControl=tctrl, method='svmLinearWeights', tuneLength=300)
+  
+  cgcmod
+})
 
+get_yeild = function(models, data, CHECK=F) {
+  lapply(names(models), function(drug) {
+    features = models[[drug]][["coefnames"]]
+    samples = rownames(data)
+    yhat = predict(models[[drug]], data[,features])
+    tump = cbind(
+      cellline=samples,
+      drug=rep(drug, each=length(samples)),
+      value=(yhat %>% `==`('Y') %>% ifelse(0, 1))
+    )
+    if (CHECK)
+      cbind(tump,Y = success_by_drug(drug))
+    else
+      tump
+  })
+}
 
-ctrl = rfeControl(functions=caretFuncs, method='cv',number=5, verbose=T)
+checkyield = models %>% get_yeild(all_train_data, T)
+checkyield
 
-svmprofile =
-  rfe(
-    x=train_by_genes(target_genes),
-    y=success_by_drug(drugs[3]),
-    method='svmRadial',
-    sizes=c(1:5,10,20,40,70,90)
-  )
+yield = models %>% get_yeild(all_test_data)
+df = yield %>% Reduce(rbind, .) %>% data.frame
 
-fitcontrol =
-  trainControl(method="repeatedcv", number=4, repeats=3, search="grid")
+df$id = apply(
+  df,
+  function(r)
+    mapping[
+      mapping$drug==r[["drug"]] &
+        mapping$cellline==r[["cellline"]],
+      ]$id,
+  MARGIN = 1)
 
-df = target_genes %>% train_by_drug(SAMPLE_DRUG)
-
-pamprofile = train(success ~ ., data=df, method="pam", trControl=fitcontrol)
-
-mtry<-7
-rfprofile = train(
-  success ~ .,
-  data=df,
-  trControl=fitcontrol,
-  method='rf',
-  tuneGrid=expand.grid(mtry=c(1:70)))
-
-#creating a svm fit to predict
-svmgrid<-expand.grid(
-  C=c(1,10,100),
-  sigma=c(0,1.2,1.5,1.7,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6))
-
-fitcontrol<-trainControl(method="repeatedcv",number=5, repeats=3, search="grid")
-svm.fit<-train(
-  success ~ C1S + SLC34A2,
-  data=df,
-  tuneGrid=svmgrid,
-  trControl=fitcontrol,
-  method='svmRadial',
-  verbose=TRUE)
-svm.predict<-predict(svm.fit, newdata=target_genes %>% test_by_genes)
-print(svm.predict)
+df[c("id", "value")] %>% arrange(id) %>% bak_and_save("submit.csv")
