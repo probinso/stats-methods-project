@@ -1,10 +1,15 @@
-setwd("~/git/kaggle-stats/philip")
-source(file.path("..", "setup.R"))
+setwd("~/git/kaggle-stats")
+source(file.path("setup.R"))
 library(caret)
 library(memoise)
 library(doMC)
 
-registerDoMC(8)
+library(easyGgplot2)
+library(ggplot2)
+source(file.path("multiplot.R"))
+
+
+registerDoMC(7)
 
 makedf = memoise(function(drug) {
   genes_cov_thresh(0.2) %>%
@@ -14,24 +19,47 @@ makedf = memoise(function(drug) {
 })
 
 fmodels = lapply(
-  drugs[
-    c("CGC-11047", "Carboplatin", 
-      "GSK1070916", "PF-3084014", 
-      "PF-4691502")],
+  drugs,
   function(drug) {
+    print("start:" %&% drug)
     df = makedf(drug)
 
     rfctrl  = rfeControl(
       functions=caretFuncs,
-      method="repeatedcv", number=5, repeats=8)
+      method="repeatedcv", number=3, repeats=5)
 
     fmodel = rfe(
-      x=df %>% dropcols(c("success")), y=df[,"success"],
-      rfeControl=rfctrl, method="rf", sizes=seq(3, 30, 5))
-
+      success ~ ., data = df,
+      rfeControl=rfctrl, method="rf", sizes=seq(3, 25, 4))
+    print("stop:" %&% drug)
     fmodel
   }
 )
+
+
+plots = lapply(
+  names(fmodels), 
+  function(drug) {
+    features = predictors(fmodels[[drug]])
+    df = all_train_data[, features] %>%
+      cbind(success=success_by_drug(drug)[train_samples]) %>% data.frame %>%
+      draw_rownames %>% melt(id=c("rownames", "success")) %>% 
+      ggplot2.stripchart(
+        data=., xName='variable',yName='value',
+        groupName='success', position=position_dodge(0.8),
+        backgroundColor="white",
+        groupColors=c('#999999','#E69F00'),
+        stat="identity", addBoxplot = T
+      ) +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+      theme(legend.position="none",
+            axis.title.x=element_blank())+
+      ggtitle(drug)
+})
+
+plots[1]
+plots %>% multiplot(plotlist = ., cols = 4)
+
 
 svmmodels = lapply(
   names(fmodels),
@@ -39,45 +67,83 @@ svmmodels = lapply(
     df = makedf(drug)
     features = predictors(fmodels[[drug]])
   
-    ctrl = trainControl(method="repeatedcv", number=5, repeats=8, sampling="up")
+    ctrl = trainControl(method="repeatedcv", number=3, repeats=5)
   
-    model = train(success ~ ., df[,c(features, "success")], trControl = ctrl, method = "svmLinear")
+    model = train(
+      success ~ ., df[,c(features, "success")],
+      trControl = ctrl, method = "svmLinear")
     model
   })
-names(svmmodels) = c("CGC-11047", "Carboplatin", 
-                     "GSK1070916", "PF-3084014", 
-                     "PF-4691502")
+names(svmmodels) = drugs
 lapply(svmmodels, confusionMatrix)
 
 
-confusionMatrix(models[["PF-4691502"]])
+sum(lapply(svmmodels, function(m) attr(m$finalModel, "nSV")) <=8)
+get_SV_count = function(m) attr(m$finalModel, "nSV")
 
-replace_models = function(src, repl) {
-  dst = src
-  for (drug in names(repl)) dst[[drug]] = repl[[drug]]
-  dst
-}
+CMPsvmmodels = lapply( # cost random
+  names(fmodels),
+  function(drug) {
+    df = makedf(drug)
+    features = predictors(fmodels[[drug]])
+    
+    ctrl = trainControl(method="repeatedcv", number=3, repeats=5)
 
-names()
+    model = train(
+      success ~ ., df[,c(features, "success")],
+      trControl = ctrl, method = "svmRadial")
+    model
+  })
+names(CMPsvmmodels) = drugs
 
-finalset = replace_models(
-  models,
-  svmmodels[names(svmmodels) %ni% c("PF-4691502")]
-)
 
-yield = lapply(names(finalset), function(drug) {
-  features = finalset[[drug]][["coefnames"]]
-  features
-  
-  features[features %ni% colnames(all_test_data)]
-  yhat = predict(finalset[[drug]], all_test_data[,features])
-  cbind(
-    cellline=test_samples,
-    drug=rep(drug, each=length(test_samples)),
-    value=(yhat %>% `==`('Y') %>% ifelse(1, 0))
-  )
-})
+RFmodels =
+  lapply(names(fmodels), function(drug) {
+    
+    df = makedf(drug)
+    features = predictors(fmodels[[drug]])
+    
+    control = trainControl(method="repeatedcv", number=3, repeats=5)
+    mtry = sqrt(ncol(df))
+    tg = expand.grid(.mtry=mtry)
+    rf_default = train(
+      success ~ ., data=df,
+      method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=5001)
+    rf_default
+  })
+names(RFmodels) = drugs
 
+
+Adamodels =
+  lapply(names(fmodels), function(drug) {
+    
+    df = makedf(drug)
+    features = predictors(fmodels[[drug]])
+    
+    control = trainControl(method="repeatedcv", number=3, repeats=5)
+
+    rf_default = train(
+      success ~ ., data=df,
+      method="ada", trControl=control)
+    rf_default
+  })
+names(Adamodels) = drugs
+
+
+
+
+lapply(RFmodels,  confusionMatrix)
+
+
+cbind(svm=lapply(svmmodels, get_SV_count), CMP=lapply(CRsvmmodels, get_SV_count))
+
+confusionMatrix(svmmodels[[1]])
+confusionMatrix(CMPsvmmodels[[1]])
+
+checkyield = svmmodels %>% get_yield(all_train_data, T)
+checkyield
+
+yield = svmmodels %>% get_yield(all_test_data)
 df = Reduce(rbind, yield) %>% data.frame
 df$id = apply(
   df,
@@ -86,7 +152,3 @@ df$id = apply(
   MARGIN = 1)
 
 df[c("id", "value")] %>% arrange(id) %>% bak_and_save("submit.csv")
-
-file.copy("rf.csv", to = "rf.csv.bak", overwrite = T)
-df[c("id", "value")] %>% arrange(id) %>% write.table("rf.csv", sep=",",row.names = F, quote=F)
-

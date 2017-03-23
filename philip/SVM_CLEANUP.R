@@ -40,7 +40,7 @@ get_yeild = function(models, data, CHECK=F) {
       value=(yhat %>% `==`('Y') %>% ifelse(0, 1))
     )
     if (CHECK)
-      cbind(tump,Y = success_by_drug(drug))
+      cbind(tump,Expected = success_by_drug(drug))
     else
       tump
   })

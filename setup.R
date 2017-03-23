@@ -98,6 +98,8 @@ test_by_genes  = function(genes)
 success_by_drug = function(drug)
   training[,drug] %>% `==`(T) %>% ifelse('Y', 'N')
 
+success_by_drug(drugs[2])
+
 # subtype frame
 subtype_by_drug = function(drug)
   subtypes %>%
@@ -126,8 +128,26 @@ train_by_drug = function(genes, drug)
   cbind(success=success_by_drug(drug))
 
 bak_and_save = function(contents, filename) {
-  file.copy(filename, to = filename %&% "bak", overwrite = T)
+  file.copy(filename, to = filename %&% ".bak", overwrite = T)
   contents %>% write.table(filename, sep=",",row.names = F, quote=F)
 }
 
+########################################################
+get_yield = function(models, data, CHECK=F) {
+  lapply(names(models), function(drug) {
+    features = models[[drug]][["coefnames"]]
+    samples = rownames(data)
+    yhat = predict(models[[drug]], data[,features])
+    tump = cbind(
+      cellline=samples,
+      drug=rep(drug, each=length(samples)),
+      value=(yhat %>% `==`('Y') %>% ifelse(0, 1))
+    )
+    if (CHECK)
+      cbind(tump,Expected = success_by_drug(drug))
+    else {
+      tump
+    }
+  })
+}
 
