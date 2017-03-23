@@ -1,15 +1,15 @@
+
 setwd("~/git/kaggle-stats")
-source(file.path("setup.R"))
 library(caret)
 library(memoise)
-library(doMC)
+library(doParallel)
+source(file.path("setup.R"))
 
-library(easyGgplot2)
 library(ggplot2)
 source(file.path("multiplot.R"))
 
 
-registerDoMC(18)
+registerDoParallel(8)
 
 makedf = memoise(function(drug) {
   genes_cov_thresh(0.2) %>%
