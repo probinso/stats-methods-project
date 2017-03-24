@@ -13,7 +13,7 @@ registerDoParallel(6)
 
 makedf = memoise(function(drug) {
   genes_cov_thresh(0.2) %>%
-    train_by_drug(drug) %>% hotextend_subtypes %>% 
+    train_by_drug(drug) %>% hotextend_subtypes %>%
     mutate_all(as.numeric) %>% sort_cor_target(0.3, "success") %>%
     mutate(success=as.factor(ifelse(success==1, 'Y', 'N')))
 })
@@ -65,7 +65,7 @@ make_plots = function(fmodels, getfeatures) lapply(
     df = all_train_data[, features] %>%
       cbind(success=success_by_drug(drug)[train_samples]) %>%
       data.frame %>%
-      draw_rownames %>% melt(id=c("rownames", "success")) %>% 
+      draw_rownames %>% melt(id=c("rownames", "success")) %>%
       ggplot2.stripchart(
         data=., xName='variable',yName='value',
         groupName='success', position=position_dodge(0.8),
@@ -83,7 +83,7 @@ make_plots = function(fmodels, getfeatures) lapply(
 
 rfeplots = fmodels %>% make_plots(function(model) predictors(model))
 rfplots  = RFmodels %>% make_plots(function(model){
-  tump = varImp(model)$importance %>% draw_rownames %>% 
+  tump = varImp(model)$importance %>% draw_rownames %>%
     arrange(Overall) %>% tail(10)
   tump$rownames %>% rev
 })
@@ -125,12 +125,19 @@ save(file="svmmodels.bak", svmmodels)
 checkyield = svmmodels %>% get_yield(all_train_data, T)
 checkyield
 
-yield = svmmodels %>% get_yield(all_test_data)
-df = Reduce(rbind, yield) %>% data.frame
-df$id = apply(
-  df,
-  function(r) 
-    mapping[mapping$drug==r[["drug"]] & mapping$cellline==r[["cellline"]],]$id,
-  MARGIN = 1)
+save_yield = function(models, filename) {
+  yield = models %>% get_yield(all_test_data)
+  df = Reduce(rbind, yield) %>% data.frame
+  df$id = apply(
+    df,
+    function(r)
+      mapping[
+        mapping$drug==r[["drug"]] & mapping$cellline==r[["cellline"]],
+      ]$id,
+    MARGIN = 1)
 
-df[c("id", "value")] %>% arrange(id) %>% bak_and_save("submit.csv")
+  df[c("id", "value")] %>% arrange(id) %>% bak_and_save(filename)
+}
+
+RFmodels  %>% save_yield("rf_submit.csv")
+svmmodels %>% save_yield("svm_submit.csv")
