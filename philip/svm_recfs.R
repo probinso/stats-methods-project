@@ -116,7 +116,7 @@ make_plots = function(fmodels, getfeatures) lapply(
       theme(legend.position="none",
             axis.title.x=element_blank())+
       ggtitle(drug)+
-      ylim(0, 15)
+      ylim(2, 15)
   })
 
 
