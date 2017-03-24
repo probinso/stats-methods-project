@@ -9,7 +9,7 @@ library(ggplot2)
 source(file.path("multiplot.R"))
 
 
-registerDoParallel(7)
+registerDoParallel(6)
 
 makedf = memoise(function(drug) {
   genes_cov_thresh(0.2) %>%
@@ -21,17 +21,18 @@ makedf = memoise(function(drug) {
 fmodels = lapply(
   drugs,
   function(drug) {
-    print("start:" %&% drug)
+    print("start:features:" %&% drug)
     df = makedf(drug)
 
+    tg = expand.grid(.mtry=sqrt(ncol(df)))
     rfctrl  = rfeControl(
       functions=caretFuncs,
-      method="repeatedcv", number=3, repeats=5)
+      method="repeatedcv", number=3, repeats=8, allowParallel=T)
 
     fmodel = rfe(
       success ~ ., data = df,
-      rfeControl=rfctrl, method="rf", sizes=seq(3, 15, 2))
-    print("stop:" %&% drug)
+      rfeControl=rfctrl, method="rf", sizes=seq(2, 25, 3), tuneGrid=tg)
+    print("stop:features:" %&% drug)
     fmodel
   }
 )
@@ -39,18 +40,19 @@ save(file="fmodels.bak", fmodels)
 
 RFmodels =
   lapply(drugs, function(drug) {
-    
-    df = genes_cov_thresh(0.2) %>%
-      train_by_drug(drug) %>% hotextend_subtypes %>%
-      mutate_all(as.numeric) %>% sort_cor_target(0.3, "success") %>%
-      mutate(success=as.factor(ifelse(success==1, 'Y', 'N')))
-    
-    control = trainControl(method="repeatedcv", number=3, repeats=5)
+    print("start:RF:" %&% drug)
+    df = makedf(drug)
+
+    control = trainControl(
+      method="repeatedcv", number=3, repeats=5)
+
     mtry = sqrt(ncol(df))
     tg = expand.grid(.mtry=mtry)
     rf_default = train(
       success ~ ., data=df,
-      method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=4000)
+      method="rf", metric="Accuracy",
+      tuneGrid=tg, trControl=control, ntree=4000)
+    print("start:RF:" %&% drug)
     rf_default
   })
 save(file="RFmodels.bak", RFmodels)
@@ -61,7 +63,8 @@ make_plots = function(fmodels, getfeatures) lapply(
   function(drug) {
     features = getfeatures(fmodels[[drug]])
     df = all_train_data[, features] %>%
-      cbind(success=success_by_drug(drug)[train_samples]) %>% data.frame %>%
+      cbind(success=success_by_drug(drug)[train_samples]) %>%
+      data.frame %>%
       draw_rownames %>% melt(id=c("rownames", "success")) %>% 
       ggplot2.stripchart(
         data=., xName='variable',yName='value',
@@ -73,7 +76,8 @@ make_plots = function(fmodels, getfeatures) lapply(
       theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
       theme(legend.position="none",
             axis.title.x=element_blank())+
-      ggtitle(drug)
+      ggtitle(drug)+
+      ylim(0, 15)
   })
 
 
@@ -104,6 +108,7 @@ target_features = lapply(
 svmmodels = lapply(
   drugs,
   function(drug) {
+    print("start:SVM:" %&% drug)
     df = makedf(drug)
     features = target_features[[drug]]
 
@@ -112,6 +117,7 @@ svmmodels = lapply(
     model = train(
       success ~ ., df[,c(features, "success")],
       trControl = ctrl, method = "svmLinearWeights")
+    print("stop:SVM:" %&% drug)
     model
   })
 save(file="svmmodels.bak", svmmodels)
