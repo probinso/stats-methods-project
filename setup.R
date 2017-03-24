@@ -35,6 +35,7 @@ matrix_boxplot = as.data.frame %|% stack %|%
   aes(x=ind, y=values) + ylim(c(2,14)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+readinteger = function(msg) as.integer(readline(prompt=msg %&% " "))
 
 ################################################################
 BASE = normalizePath(file.path("."))
