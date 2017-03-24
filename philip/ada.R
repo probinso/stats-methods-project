@@ -1,4 +1,3 @@
-
 setwd("~/git/kaggle-stats")
 library(caret)
 library(memoise)
@@ -35,7 +34,9 @@ fmodels = lapply(
     fmodel
   }
 )
-
+save(file="fmodels", fmodels)
+#rm(fmodels)
+load("fmodels")
 
 Adamodels =
   lapply(names(fmodels), function(drug) {
@@ -53,4 +54,21 @@ Adamodels =
     rf_default
   })
 names(Adamodels) = drugs
+save("adamodels", Adamodels)
 
+load("./adamodels")
+lapply(Adamodels, confusionMatrix)
+
+
+checkyield = Adamodels %>% get_yield(all_train_data, T)
+checkyield
+
+yield = Adamodels %>% get_yield(all_test_data)
+df = Reduce(rbind, yield) %>% data.frame
+df$id = apply(
+  df,
+  function(r) 
+    mapping[mapping$drug==r[["drug"]] & mapping$cellline==r[["cellline"]],]$id,
+  MARGIN = 1)
+
+df[c("id", "value")] %>% arrange(id) %>% bak_and_save("submit.csv")

@@ -1,44 +1,43 @@
-setwd("~/git/kaggle-stats/philip")
-source(file.path("..", "setup.R"))
+setwd("~/git/kaggle-stats/")
+source(file.path("setup.R"))
 library(caret)
+library(doParallel)
 
-target_genes = genes_cov_thresh(0.4) %>% genes_cor_thresh(0.7)
-length(target_genes) 
+registerDoParallel(7)
 
-models =
+
+RFmodels =
   lapply(drugs, function(drug) {
     
-    df = target_genes %>% train_by_drug(drug) %>% hotextend_subtypes
-    
-    control = trainControl(method="repeatedcv", number=4, repeats=10)
+    df = genes_cov_thresh(0.2) %>%
+      train_by_drug(drug) %>% hotextend_subtypes %>%
+      mutate_all(as.numeric) %>% sort_cor_target(0.3, "success") %>%
+      mutate(success=as.factor(ifelse(success==1, 'Y', 'N')))
+
+    control = trainControl(method="repeatedcv", number=3, repeats=5)
     mtry = sqrt(ncol(df))
     tg = expand.grid(.mtry=mtry)
     rf_default = train(
       success ~ ., data=df,
-      method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=100)
+      method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=4000)
     rf_default
   })
 
-lapply(hmodels, function(m) m[["results"]][["Accuracy"]]) %>% unlist %>% sort
+varImp(RFmodels[[1]]) 
 
+%>% head(10)
 
-yield = lapply(names(models), function(drug) {
-  yhat = predict(models[[drug]], test_by_genes(target_genes))
-  cbind(
-    test_samples,
-    rep(drug, each=length(test_samples)),
-    yhat %>% `==`('Y') %>% ifelse(1, 0)
-  )
-})
-  
+lapply(RFmodels, function(m) m[["results"]][["Accuracy"]]) %>% unlist %>% sort
 
+checkyield = RFmodels %>% get_yield(all_train_data, T)
+checkyield
+
+yield = RFmodels %>% get_yield(all_test_data)
 df = Reduce(rbind, yield) %>% data.frame
-colnames(df) = c("cellline", "drug", "value")
 df$id = apply(
   df,
   function(r) 
     mapping[mapping$drug==r[["drug"]] & mapping$cellline==r[["cellline"]],]$id,
   MARGIN = 1)
 
-df[c("id", "value")] %>% arrange(id) %>% write.table("rf.csv", sep=",",row.names = F, quote=F)
-
+df[c("id", "value")] %>% arrange(id) %>% bak_and_save("submit.csv")

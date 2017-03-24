@@ -13,7 +13,7 @@ registerDoMC(7)
 
 makedf = memoise(function(drug) {
   genes_cov_thresh(0.2) %>%
-    train_by_drug(drug) %>% hotextend_subtypes %>%
+    train_by_drug(drug) %>% hotextend_subtypes %>% 
     mutate_all(as.numeric) %>% sort_cor_target(0.3, "success") %>%
     mutate(success=as.factor(ifelse(success==1, 'Y', 'N')))
 })
@@ -30,17 +30,34 @@ fmodels = lapply(
 
     fmodel = rfe(
       success ~ ., data = df,
-      rfeControl=rfctrl, method="rf", sizes=seq(3, 25, 4))
+      rfeControl=rfctrl, method="rf", sizes=seq(3, 15, 2))
     print("stop:" %&% drug)
     fmodel
   }
 )
 
+RFmodels =
+  lapply(drugs, function(drug) {
+    
+    df = genes_cov_thresh(0.2) %>%
+      train_by_drug(drug) %>% hotextend_subtypes %>%
+      mutate_all(as.numeric) %>% sort_cor_target(0.3, "success") %>%
+      mutate(success=as.factor(ifelse(success==1, 'Y', 'N')))
+    
+    control = trainControl(method="repeatedcv", number=3, repeats=5)
+    mtry = sqrt(ncol(df))
+    tg = expand.grid(.mtry=mtry)
+    rf_default = train(
+      success ~ ., data=df,
+      method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=4000)
+    rf_default
+  })
 
-plots = lapply(
-  names(fmodels), 
+
+make_plots = function(fmodels, getfeatures) lapply(
+  drugs,
   function(drug) {
-    features = predictors(fmodels[[drug]])
+    features = getfeatures(fmodels[[drug]])
     df = all_train_data[, features] %>%
       cbind(success=success_by_drug(drug)[train_samples]) %>% data.frame %>%
       draw_rownames %>% melt(id=c("rownames", "success")) %>% 
@@ -55,90 +72,47 @@ plots = lapply(
       theme(legend.position="none",
             axis.title.x=element_blank())+
       ggtitle(drug)
+  })
+
+
+rfeplots = fmodels %>% make_plots(function(model) predictors(model))
+rfplots  = RFmodels %>% make_plots(function(model){
+  tump = varImp(model)$importance %>% draw_rownames %>% 
+    arrange(Overall) %>% tail(10)
+  tump$rownames %>% rev
 })
 
-plots[1]
-plots %>% multiplot(plotlist = ., cols = 4)
 
+plots = lapply(drugs, function(drug) {
+  png(drug %&% ".png")
+  list(rfeplots[[drug]], rfplots[[drug]]) %>%
+    multiplot(plotlist = ., cols = 2)
+  dev.off()
+}
+)
+
+target_features = lapply(
+  drugs,
+  function(drug) {
+    df = makedf(drug)
+    colnames(df)[grepl("subtype*", colnames(df))] %>%
+    union(predictors(fmodels[[drug]])) %>% unlist
+  })
 
 svmmodels = lapply(
-  names(fmodels),
+  drugs,
   function(drug) {
     df = makedf(drug)
-    features = predictors(fmodels[[drug]])
-  
-    ctrl = trainControl(method="repeatedcv", number=3, repeats=5)
-  
-    model = train(
-      success ~ ., df[,c(features, "success")],
-      trControl = ctrl, method = "svmLinear")
-    model
-  })
-names(svmmodels) = drugs
-lapply(svmmodels, confusionMatrix)
+    features = target_features[[drug]]
 
-
-sum(lapply(svmmodels, function(m) attr(m$finalModel, "nSV")) <=8)
-get_SV_count = function(m) attr(m$finalModel, "nSV")
-
-CMPsvmmodels = lapply( # cost random
-  names(fmodels),
-  function(drug) {
-    df = makedf(drug)
-    features = predictors(fmodels[[drug]])
-    
     ctrl = trainControl(method="repeatedcv", number=3, repeats=5)
 
     model = train(
       success ~ ., df[,c(features, "success")],
-      trControl = ctrl, method = "svmRadial")
+      trControl = ctrl, method = "svmLinearWeights")
     model
   })
-names(CMPsvmmodels) = drugs
 
-
-RFmodels =
-  lapply(names(fmodels), function(drug) {
-    
-    df = makedf(drug)
-    features = predictors(fmodels[[drug]])
-    
-    control = trainControl(method="repeatedcv", number=3, repeats=5)
-    mtry = sqrt(ncol(df))
-    tg = expand.grid(.mtry=mtry)
-    rf_default = train(
-      success ~ ., data=df,
-      method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=5001)
-    rf_default
-  })
-names(RFmodels) = drugs
-
-
-Adamodels =
-  lapply(names(fmodels), function(drug) {
-    
-    df = makedf(drug)
-    features = predictors(fmodels[[drug]])
-    
-    control = trainControl(method="repeatedcv", number=3, repeats=5)
-
-    rf_default = train(
-      success ~ ., data=df,
-      method="ada", trControl=control)
-    rf_default
-  })
-names(Adamodels) = drugs
-
-
-
-
-lapply(RFmodels,  confusionMatrix)
-
-
-cbind(svm=lapply(svmmodels, get_SV_count), CMP=lapply(CRsvmmodels, get_SV_count))
-
-confusionMatrix(svmmodels[[1]])
-confusionMatrix(CMPsvmmodels[[1]])
 
 checkyield = svmmodels %>% get_yield(all_train_data, T)
 checkyield

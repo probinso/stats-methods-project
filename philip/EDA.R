@@ -1,5 +1,5 @@
-source("./../setup.R")
-source("./../multiplot.R")
+source("./setup.R")
+source("./multiplot.R")
 
 library(easyGgplot2)
 library(ggplot2)
