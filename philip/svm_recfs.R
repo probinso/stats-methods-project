@@ -2,14 +2,14 @@ setwd("~/git/kaggle-stats")
 source(file.path("setup.R"))
 library(caret)
 library(memoise)
-library(doMC)
+library(doParallel)
 
 library(easyGgplot2)
 library(ggplot2)
 source(file.path("multiplot.R"))
 
 
-registerDoMC(7)
+registerDoParallel(7)
 
 makedf = memoise(function(drug) {
   genes_cov_thresh(0.2) %>%
@@ -35,6 +35,7 @@ fmodels = lapply(
     fmodel
   }
 )
+save(file="fmodels.bak", fmodels)
 
 RFmodels =
   lapply(drugs, function(drug) {
@@ -52,6 +53,7 @@ RFmodels =
       method="rf", metric="Accuracy", tuneGrid=tg, trControl=control, ntree=4000)
     rf_default
   })
+save(file="RFmodels.bak", RFmodels)
 
 
 make_plots = function(fmodels, getfeatures) lapply(
@@ -112,7 +114,7 @@ svmmodels = lapply(
       trControl = ctrl, method = "svmLinearWeights")
     model
   })
-
+save(file="svmmodels.bak", svmmodels)
 
 checkyield = svmmodels %>% get_yield(all_train_data, T)
 checkyield
