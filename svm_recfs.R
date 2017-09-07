@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 ############################################################
-# `setup.R` provides useful data manipulation code.
+# `setup.R` provides(") useful data manipulation code.
 source(file.path("setup.R"))
 
 ############################################################
@@ -9,16 +9,19 @@ library(caret)
 library(memoise)
 library(doParallel)
 
+library(devtools)
+install_github("kassambara/easyGgplot2", force=T)
 library(easyGgplot2)
 library(ggplot2)
-source(file.path("multiplot.R"))
+library(e1071)
 
+library(lutilities)
 ############################################################
 # Yield of all time expensive code blocks are saved out to
 #   disk. This allows for easier and iterative interactive
 #   workflow after executing each code sections
 
-CORES = 8 #readinteger("Number of cores you can sacrifice:")
+CORES = 6 #readinteger("Number of cores you can sacrifice:")
 registerDoParallel(CORES)
 
 ############################################################
@@ -57,7 +60,7 @@ fmodels = lapply(
     fmodel = rfe(
       success ~ ., data = df,
       rfeControl=rfctrl, method="rf", sizes=seq(2, 25, 3), tuneGrid=tg)
-    print("stop:features:" %&% drug)
+    print("features:stop:" %&% drug)
     fmodel
   }
 )
@@ -68,19 +71,19 @@ save(file="fmodels.bak", fmodels)
 #   filtered parameters.
 RFmodels =
   lapply(drugs, function(drug) {
-    print("start:RF:" %&% drug)
+    print("RF:start:" %&% drug)
     df = makedf(drug)
 
     control = trainControl(
-      method="repeatedcv", number=3, repeats=5)
+      method="repeatedcv", number=3, repeats=5, classProbs = T)
 
     mtry = sqrt(ncol(df))
     tg = expand.grid(.mtry=mtry)
     rf_default = train(
       success ~ ., data=df,
-      method="rf", metric="Accuracy",
+      method="rf", metric="ROC",
       tuneGrid=tg, trControl=control, ntree=4000)
-    print("start:RF:" %&% drug)
+    print("RF:start:" %&% drug)
     rf_default
   })
 save(file="RFmodels.bak", RFmodels)
@@ -121,8 +124,8 @@ make_plots = function(fmodels, getfeatures) lapply(
 ############################################################
 # Save plots for each model in lists, in order to generate
 #   side by side multiplots.
-rfeplots = fmodels %>% make_plots(function(model) predictors(model))
-rfplots  = RFmodels %>% make_plots(function(model){
+rfeplots = fmodels  %>% make_plots(function(model) predictors(model))
+rfplots  = RFmodels %>% make_plots(function(model) {
   tump = varImp(model)$importance %>% draw_rownames %>%
     arrange(Overall) %>% tail(10)
   tump$rownames %>% rev
@@ -157,19 +160,43 @@ target_features = lapply(
 svmmodels = lapply(
   drugs,
   function(drug) {
-    print("start:SVM:" %&% drug)
+    print("SVM:start:" %&% drug)
     df = makedf(drug)
     features = target_features[[drug]]
 
-    ctrl = trainControl(method="repeatedcv", number=3, repeats=5)
+    ctrl = trainControl(
+      method="repeatedcv", number=3, repeats=5,
+      classProbs = T)
 
     model = train(
       success ~ ., df[,c(features, "success")],
-      trControl = ctrl, method = "svmLinearWeights")
-    print("stop:SVM:" %&% drug)
+      trControl = ctrl, method = "svmLinearWeights", metric="ROC")
+    print("SVM:stop:" %&% drug)
     model
   })
 save(file="svmmodels.bak", svmmodels)
+
+############################################################
+# get_yield produces a dataframe containing predicitons in
+#   a consistant manner, given input data and a predictor
+#   model.
+get_yield = function(models, data, CHECK=F) {
+  lapply(names(models), function(drug) {
+    features = models[[drug]][["coefnames"]]
+    samples  = rownames(data)
+    yhat = predict(models[[drug]], data[,features])
+    tump = cbind(
+      cellline=samples,
+      drug  = rep(drug, each=length(samples)),
+      value =(yhat %>% `==`('Y') %>% ifelse(0, 1))
+    )
+    if (CHECK)
+      cbind(tump, Expected = success_by_drug(drug))
+    else {
+      tump
+    }
+  })
+}
 
 ############################################################
 # Code verifies class assignment looks as expected

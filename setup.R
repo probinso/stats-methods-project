@@ -5,42 +5,18 @@ library(matrixStats)
 library(reshape2)
 library(tidyverse)
 
-############################################################
-# Helper functions providing infix operators for cleaner code
+library(devtools)
+devtools::install_github("probinso/lutilities", force=T)
+library(lutilities)
 
-# parameter-partial evaluation
-part   = function(f, ...) function(X) f(X, ...)
-
-# 'x' not in 'y'
-'%ni%' = Negate("%in%")
-
-# string concatination
-'%&%'  = function(x, y)paste0(x,y)
-
-# function composition
-'%|%'  = function(f, g) function(X) X %>% f %>% g # function composition
-
-# T pipe, takes data to multiple functions
-'%T%'  = function(d, funcs)
-  lapply(funcs, part(function(f, d) f(d), d))
-
-# T map, takes multple datasets to one function
-#   equivelent to lapply (using T consistant syntax)
-'%T>%' = function(l, f) lapply(l, f)
-
-# to fix tibble removal of rownames, this saves the rownames
-#   as a column
-draw_rownames <- function(.data) .data %>%
-  do(mutate(.,"rownames"=rownames(.)))
+# read integer from terminal
+readinteger = function(msg) as.integer(readline(prompt=msg %&% " "))
 
 # read.tsv provides helper for reading files
 #   all data files had the same layout
-read.tsv = part(
-  read.delim, sep='\t',
+read.tsv = partial(
+  read.delim, sep='\t',s
   row.names=1, header=T, check.names = F)
-
-# remove specific columns from a dataframe
-dropcols = function(df, cols) df[,colnames(df) %ni% cols]
 
 # takes a matrix and generates a simple boxplot
 matrix_boxplot = as.data.frame %|% stack %|%
@@ -48,8 +24,6 @@ matrix_boxplot = as.data.frame %|% stack %|%
   aes(x=ind, y=values) + ylim(c(2,14)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-# read integer from terminal
-readinteger = function(msg) as.integer(readline(prompt=msg %&% " "))
 
 ############################################################
 # This is code to read original files in and convert the
@@ -59,7 +33,7 @@ readinteger = function(msg) as.integer(readline(prompt=msg %&% " "))
 # subtypes  : sample -> subtype lookup table
 # drugs     : the drugs by name
 # mapping   : id lookup table for kaggle submission
-BASE = normalizePath(file.path("."))
+BASE = normalizePath(file.path("~/git/kaggle-stats/"))
 
 gene_data = read.tsv(file.path(BASE, "expression.txt")) %>%
   as.matrix %>% t
@@ -105,12 +79,12 @@ sort_cor_target = function(df, COTR, target)
 train_samples = row.names(training)
 test_samples  = rownames(gene_data)[rownames(gene_data) %ni% train_samples]
 
-data_by_genes  = function(genes) gene_data[, genes] %>% data.frame
+data_by_genes = function(genes) gene_data[, genes] %>% data.frame
 
 train_by_genes =
   function(genes) gene_data[train_samples, genes] %>% data.frame
 
-test_by_genes  = function(genes)
+test_by_genes = function(genes)
   gene_data[test_samples, genes] %>% data.frame
 
 success_by_drug = function(drug)
@@ -130,8 +104,8 @@ hotextend_subtypes = function(df) {
 }
 
 all_test_data =
-  gene_data[test_samples, ] %>% 
-  data.frame %>% 
+  gene_data[test_samples, ] %>%
+  data.frame %>%
   hotextend_subtypes
 
 all_train_data =
@@ -146,32 +120,11 @@ train_by_drug = function(genes, drug)
 ############################################################
 # Functions to facilitate generating predictions for kaggle
 #
-# get_yield produces a dataframe containing predicitons in
-#   a consistant manner, given input data and a predictor
-#   model.
-get_yield = function(models, data, CHECK=F) {
-  lapply(names(models), function(drug) {
-    features = models[[drug]][["coefnames"]]
-    samples = rownames(data)
-    yhat = predict(models[[drug]], data[,features])
-    tump = cbind(
-      cellline=samples,
-      drug=rep(drug, each=length(samples)),
-      value=(yhat %>% `==`('Y') %>% ifelse(0, 1))
-    )
-    if (CHECK)
-      cbind(tump,Expected = success_by_drug(drug))
-    else {
-      tump
-    }
-  })
-}
-
 # bak_and_save saves the contents of a table to disk at filename
 #   without clobbering the most recent saved file of that same
 #   name, to allow for verifying saved changes
 bak_and_save = function(contents, filename) {
   file.copy(filename, to = filename %&% ".bak", overwrite = T)
-  contents %>% write.table(filename, sep=",",row.names = F, quote=F)
+  contents %>% write.table(filename, sep=",", row.names = F, quote=F)
 }
 
