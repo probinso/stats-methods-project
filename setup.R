@@ -15,7 +15,7 @@ readinteger = function(msg) as.integer(readline(prompt=msg %&% " "))
 # read.tsv provides helper for reading files
 #   all data files had the same layout
 read.tsv = partial(
-  read.delim, sep='\t',s
+  read.delim, sep='\t',
   row.names=1, header=T, check.names = F)
 
 # takes a matrix and generates a simple boxplot
@@ -33,24 +33,26 @@ matrix_boxplot = as.data.frame %|% stack %|%
 # subtypes  : sample -> subtype lookup table
 # drugs     : the drugs by name
 # mapping   : id lookup table for kaggle submission
-BASE = normalizePath(file.path("~/git/kaggle-stats/"))
+BASE <- normalizePath(file.path("~/git/kaggle-stats/"))
 
-gene_data = read.tsv(file.path(BASE, "expression.txt")) %>%
+gene_data <- read.tsv(file.path(BASE, "data", "expression.txt")) %>%
   as.matrix %>% t
 
-training =
-  read.tsv(file.path(BASE, "training_set_answers.txt")) %>%
+training <-
+  read.tsv(file.path(BASE, "data", "training_set_answers.txt")) %>%
   `==`(1) %>% ifelse(T, F)
 
-subtypes = read.tsv(file.path(BASE, "subtypes.txt"))
+subtypes <- read.tsv(file.path(BASE, "data", "subtypes.txt"))
 
-mapping =
+mapping <-
   read.csv(
-    file.path(BASE, "scoring_and_test_set_id_mappings.csv")) %>%
+    file.path(BASE, "data" ,"scoring_and_test_set_id_mappings.csv")) %>%
   data.frame
 
-drugs = colnames(training)
-names(drugs) = drugs
+# allowing this list to be indexed by drug name will make looping 
+#   easier later
+drugs <- colnames(training)
+names(drugs) <- drugs
 
 ############################################################
 # data transformation and filtering functions, as described
@@ -58,11 +60,13 @@ names(drugs) = drugs
 rowCov = function(mat) rowSds(mat) / rowMeans(mat)
 colCoV = t %|% rowCov
 
-gene_cov = gene_data %>% colCoV
+gene_cov <- gene_data %>% colCoV
 
+# grab gene-names with covariance minimum of threshold
 genes_cov_thresh =
   function(CVTR) gene_cov %>% subset(gene_cov > CVTR) %>% names
 
+# grab gene-names with maximum absolute correlation upper bound of threshold
 genes_cor_thresh =
   function(names, COTR) {
     names %>% train_by_genes %>% cor %>%
@@ -76,8 +80,8 @@ sort_cor_target = function(df, COTR, target)
   abs %>% sort(decreasing = T) %>% .[-c(1)] %>% .[.>COTR] %>%
   names %>% c(target) %>% df[, .]
 
-train_samples = row.names(training)
-test_samples  = rownames(gene_data)[rownames(gene_data) %ni% train_samples]
+train_samples <- row.names(training)
+test_samples  <- rownames(gene_data)[rownames(gene_data) %ni% train_samples]
 
 data_by_genes = function(genes) gene_data[, genes] %>% data.frame
 

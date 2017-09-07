@@ -86,7 +86,7 @@ RFmodels =
     print("RF:start:" %&% drug)
     rf_default
   })
-save(file="RFmodels.bak", RFmodels)
+save(file=file.path(BASE, "cache", "RFmodels.bak", RFmodels))
 
 
 ############################################################
@@ -174,7 +174,7 @@ svmmodels = lapply(
     print("SVM:stop:" %&% drug)
     model
   })
-save(file="svmmodels.bak", svmmodels)
+save(file=file.path(BASE, "cache", "svmmodels.bak"), svmmodels)
 
 ############################################################
 # get_yield produces a dataframe containing predicitons in
