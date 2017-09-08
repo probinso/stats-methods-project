@@ -64,7 +64,7 @@ fmodels = lapply(
     fmodel
   }
 )
-save(file="fmodels.bak", fmodels)
+save(file=file.path(BASE, "cache", "fmodels.bak"), fmodels)
 
 ############################################################
 # Models generated with random forests, using loosley
@@ -83,10 +83,10 @@ RFmodels =
       success ~ ., data=df,
       method="rf", metric="ROC",
       tuneGrid=tg, trControl=control, ntree=4000)
-    print("RF:start:" %&% drug)
+    print("RF:stop:" %&% drug)
     rf_default
   })
-save(file=file.path(BASE, "cache", "RFmodels.bak", RFmodels))
+save(file=file.path(BASE, "cache", "RFmodels.bak"), RFmodels)
 
 
 ############################################################
